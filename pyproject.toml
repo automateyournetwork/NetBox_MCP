@@ -1,0 +1,19 @@
+[project]
+name = "netbox-mcp-server"
+version = "0.1.0"
+description = "Full CRUD MCP server for NetBox using FastMCP"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.14.0,<3",
+    "httpx>=0.28.1",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+netbox-mcp-server = "netbox_mcp_server.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -238,6 +238,41 @@ class NetBoxClient:
         resp.raise_for_status()
         return resp.json()
 
+    def bulk_create_objects(
+        self,
+        object_type: str,
+        data: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        path = self._resolve_path(object_type)
+        resp = self.client.post(f"{path}/", json=data)
+        resp.raise_for_status()
+        return resp.json()
+
+    def bulk_update_objects(
+        self,
+        object_type: str,
+        data: list[dict[str, Any]],
+        partial: bool = True,
+    ) -> list[dict[str, Any]]:
+        path = self._resolve_path(object_type)
+        if partial:
+            resp = self.client.patch(f"{path}/", json=data)
+        else:
+            resp = self.client.put(f"{path}/", json=data)
+        resp.raise_for_status()
+        return resp.json()
+
+    def bulk_delete_objects(
+        self,
+        object_type: str,
+        ids: list[int],
+    ) -> dict[str, Any]:
+        path = self._resolve_path(object_type)
+        data = [{"id": obj_id} for obj_id in ids]
+        resp = self.client.delete(f"{path}/", json=data)
+        resp.raise_for_status()
+        return {"status": "deleted", "object_type": object_type, "count": len(ids), "ids": ids}
+
     def delete_object(self, object_type: str, object_id: int) -> dict[str, str]:
         path = self._resolve_path(object_type)
         resp = self.client.delete(f"{path}/{object_id}/")
@@ -405,6 +440,102 @@ def netbox_delete_object(object_type: str, object_id: int) -> dict[str, str]:
     """
     client = get_client()
     return client.delete_object(object_type, object_id)
+
+
+# ---------------------------------------------------------------------------
+# Tool: Bulk create objects
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def netbox_bulk_create_objects(
+    object_type: str,
+    data: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Create multiple NetBox objects in a single API call.
+
+    The NetBox API natively supports bulk creation by POSTing a JSON array.
+    This is much more efficient than creating objects one at a time — use this
+    to create 50 interfaces, 100 IP addresses, etc. in one request.
+
+    Args:
+        object_type: The NetBox object type in 'app.resource' format.
+            Examples: 'dcim.interfaces', 'ipam.ip-addresses', 'dcim.devices'.
+        data: A list of dicts, each representing one object to create.
+            Example — 3 interfaces on device ID 1:
+            [
+                {"device": 1, "name": "GigabitEthernet0/0", "type": "1000base-t"},
+                {"device": 1, "name": "GigabitEthernet0/1", "type": "1000base-t"},
+                {"device": 1, "name": "GigabitEthernet0/2", "type": "1000base-t"}
+            ]
+            Example — 2 IP addresses:
+            [
+                {"address": "10.0.0.1/24", "status": "active"},
+                {"address": "10.0.0.2/24", "status": "active"}
+            ]
+
+    Returns:
+        A list of the created objects (each with its new ID).
+    """
+    client = get_client()
+    return client.bulk_create_objects(object_type, data)
+
+
+# ---------------------------------------------------------------------------
+# Tool: Bulk update objects
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def netbox_bulk_update_objects(
+    object_type: str,
+    data: list[dict[str, Any]],
+    partial: bool = True,
+) -> list[dict[str, Any]]:
+    """Update multiple NetBox objects in a single API call.
+
+    Each dict in the list MUST include an 'id' field identifying the object
+    to update, plus the fields to change.
+
+    Args:
+        object_type: The NetBox object type in 'app.resource' format.
+            Examples: 'dcim.interfaces', 'ipam.ip-addresses', 'dcim.devices'.
+        data: A list of dicts, each with 'id' and fields to update.
+            Example — update status on 3 interfaces:
+            [
+                {"id": 10, "enabled": false},
+                {"id": 11, "enabled": false},
+                {"id": 12, "description": "Uplink"}
+            ]
+        partial: If True (default), use PATCH. If False, use PUT.
+
+    Returns:
+        A list of the updated objects.
+    """
+    client = get_client()
+    return client.bulk_update_objects(object_type, data, partial=partial)
+
+
+# ---------------------------------------------------------------------------
+# Tool: Bulk delete objects
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def netbox_bulk_delete_objects(
+    object_type: str,
+    ids: list[int],
+) -> dict[str, Any]:
+    """Delete multiple NetBox objects in a single API call.
+
+    Args:
+        object_type: The NetBox object type in 'app.resource' format.
+            Examples: 'dcim.interfaces', 'ipam.ip-addresses', 'dcim.devices'.
+        ids: A list of numeric IDs to delete.
+            Example: [10, 11, 12, 13, 14]
+
+    Returns:
+        A confirmation dict with status, object_type, count, and ids.
+    """
+    client = get_client()
+    return client.bulk_delete_objects(object_type, ids)
 
 
 # ---------------------------------------------------------------------------
